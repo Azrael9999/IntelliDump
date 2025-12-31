@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using IntelliDump.Diagnostics;
 using IntelliDump.Reasoning;
@@ -56,10 +57,15 @@ public static class PdfReportBuilder
             col.Item().Text($"Threads shown: {snapshot.Threads.Count} of {snapshot.TotalThreadCount}; Strings: {snapshot.UniqueStringCount} unique / {snapshot.TotalStringOccurrences} occurrences (stack {snapshot.StackStringOccurrences}, heap {snapshot.HeapStringOccurrences})");
             col.Item().Text($"Heap types shown: {snapshot.HeapTypes.Count} of {snapshot.TotalHeapTypeCount} covering {(snapshot.HeapHistogramCoverage * 100):N1}% of managed heap ({snapshot.TotalHeapObjectCount:N0} objects over {snapshot.Gc.TotalHeapBytes / (1024 * 1024):N0} MB); Modules shown: {Math.Min(20, snapshot.LoadedModules.Count)} of {snapshot.TotalModuleCount} covering {(snapshot.ModuleCoverageShown * 100):N1}% of {snapshot.TotalModuleBytes / (1024 * 1024):N0} MB");
             col.Item().Text($"Threads analyzed: {snapshot.Threads.Count} shown of {snapshot.TotalThreadCount} total");
+            col.Item().PaddingVertical(6).Background(Colors.Grey.Lighten4).Padding(8).Text(t =>
+            {
+                t.Span("How to read this report: ").SemiBold();
+                t.Span("Each section below summarizes what was found in the dump. The Deadlocks & Blocking section lists which threads hold locks and who appears to be waiting on them. Threads are printed with their key stack frames so you can quickly see what code is blocking others.");
+            });
             if (snapshot.DeadlockCandidates.Count > 0)
             {
                 var first = snapshot.DeadlockCandidates.First();
-                col.Item().Text($"Deadlock candidates detected: {snapshot.DeadlockCandidates.Count} (e.g., object 0x{first.ObjectAddress:X} owner={first.OwnerThreadId?.ToString() ?? "unknown"} waiting={first.WaitingThreads})").FontColor(Colors.Red.Medium);
+                col.Item().Text($"Deadlock candidates detected: {snapshot.DeadlockCandidates.Count} (e.g., object 0x{first.ObjectAddress:X} owner={first.OwnerThreadId?.ToString() ?? "unknown"} waiting={first.WaitingThreads}). See Deadlocks & Blocking for thread details.").FontColor(Colors.Red.Medium);
             }
             if (snapshot.Warnings.Count > 0)
             {
@@ -83,11 +89,95 @@ public static class PdfReportBuilder
             }
 
             col.Item().PaddingVertical(10).Element(c => FindingsSection(c, snapshot, issues));
+            col.Item().PaddingVertical(10).Element(c => DeadlocksAndBlockingSection(c, snapshot));
             col.Item().PaddingVertical(10).Element(c => ThreadsSection(c, snapshot));
             col.Item().PaddingVertical(10).Element(c => GcSection(c, snapshot));
             col.Item().PaddingVertical(10).Element(c => StringsSection(c, snapshot));
             col.Item().PaddingVertical(10).Element(c => ModulesSection(c, snapshot));
             col.Item().PaddingVertical(10).Element(c => WarningsSection(c, snapshot));
+        });
+    }
+
+    private static void DeadlocksAndBlockingSection(IContainer container, DumpSnapshot snapshot)
+    {
+        container.Column(col =>
+        {
+            col.Item().Text("Deadlocks & Blocking").FontSize(16).SemiBold();
+
+            if (snapshot.DeadlockCandidates.Count == 0 && snapshot.Blocking.SyncBlockCount == 0)
+            {
+                col.Item().Text("No lock contention signals were detected.");
+            }
+            else
+            {
+                if (snapshot.DeadlockCandidates.Count > 0)
+                {
+                    col.Item().Text($"Deadlock candidates: {snapshot.DeadlockCandidates.Count}. Objects are shown with their owner and approximate waiters.").FontColor(Colors.Red.Medium);
+                    foreach (var deadlock in snapshot.DeadlockCandidates)
+                    {
+                        var owner = deadlock.OwnerThreadId?.ToString() ?? "unknown";
+                        var ownerThread = snapshot.Threads.FirstOrDefault(t => t.ManagedId == deadlock.OwnerThreadId);
+                        col.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(c =>
+                        {
+                            c.Item().Text($"Object 0x{deadlock.ObjectAddress:X}").SemiBold();
+                            c.Item().Text($"Owner thread: {owner}; Waiting threads: {deadlock.WaitingThreads}");
+                            if (ownerThread is not null)
+                            {
+                                c.Item().Text("Owner stack:").SemiBold();
+                                c.Item().Text(string.Join(" → ", ownerThread.Stack.Take(8)));
+                            }
+                        });
+                    }
+                }
+
+                col.Item().PaddingTop(6).Text($"Sync blocks observed: {snapshot.Blocking.SyncBlockCount}; Waiting threads seen: {snapshot.Blocking.WaitingThreadCount}.").FontColor(Colors.Grey.Darken1);
+            }
+
+            var blockingThreads = snapshot.Threads
+                .Where(t => t.LockCount > 0)
+                .OrderByDescending(t => t.LockCount)
+                .ThenBy(t => t.ManagedId)
+                .Take(12)
+                .ToList();
+
+            if (blockingThreads.Count > 0)
+            {
+                col.Item().PaddingTop(8).Text("Threads holding locks (top 12)").SemiBold();
+                foreach (var thread in blockingThreads)
+                {
+                    col.Item().BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten3).PaddingVertical(4).Text(t =>
+                    {
+                        t.Span($"#{thread.ManagedId} ").SemiBold();
+                        t.Span($"State: {thread.State}; Locks held: {thread.LockCount}; CPUms: {thread.CpuTimeMs?.ToString("N0") ?? "n/a"}");
+                        if (!string.IsNullOrWhiteSpace(thread.CurrentException))
+                        {
+                            t.Span($" | Exception: {thread.CurrentException}").FontColor(Colors.Red.Medium);
+                        }
+                    });
+                    col.Item().Text(string.Join(" → ", thread.Stack.Take(6))).FontColor(Colors.Grey.Darken2);
+                }
+            }
+
+            var waitingThreads = snapshot.Threads
+                .Where(t => t.State.Contains("Wait", StringComparison.OrdinalIgnoreCase) || t.State.Contains("Block", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(t => t.Stack.Count)
+                .ThenBy(t => t.ManagedId)
+                .Take(12)
+                .ToList();
+
+            if (waitingThreads.Count > 0)
+            {
+                col.Item().PaddingTop(8).Text("Threads waiting on locks or resources (top 12)").SemiBold();
+                foreach (var thread in waitingThreads)
+                {
+                    col.Item().BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten3).PaddingVertical(4).Text(t =>
+                    {
+                        t.Span($"#{thread.ManagedId} ").SemiBold();
+                        t.Span($"State: {thread.State}; Locks held: {thread.LockCount}; CPUms: {thread.CpuTimeMs?.ToString("N0") ?? "n/a"}");
+                    });
+                    col.Item().Text(string.Join(" → ", thread.Stack.Take(6))).FontColor(Colors.Grey.Darken2);
+                }
+            }
         });
     }
 

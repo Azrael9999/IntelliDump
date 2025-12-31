@@ -23,6 +23,8 @@ public partial class MainWindow : Window
 
     public string DumpPath { get; set; } = string.Empty;
     public string Status { get; set; } = "Pick a dump file to begin.";
+    public bool IsAnalyzing { get; set; }
+    public bool IsNotAnalyzing => !IsAnalyzing;
     public string HighlightSummary { get; set; } = string.Empty;
     public string ThreadsSummary { get; set; } = string.Empty;
     public string GcSummary { get; set; } = string.Empty;
@@ -109,6 +111,7 @@ public partial class MainWindow : Window
         }
 
         Status = "Analyzing dump...";
+        IsAnalyzing = true;
         RefreshBindings();
 
         try
@@ -134,6 +137,10 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Status = $"Analysis failed: {ex.Message}";
+        }
+        finally
+        {
+            IsAnalyzing = false;
         }
 
         RefreshBindings();
