@@ -18,6 +18,8 @@ dotnet run --project src/IntelliDump.App
 
 # Ask a local LLM (defaults to phi3:mini via Ollama) to narrate the findings
 dotnet run --project src/IntelliDump.App /path/to/iis-worker.dmp --ai --ai-model phi3:mini
+# Use a chat-style endpoint (e.g., qwen2.5-coder:7b on /api/chat) by pointing at that URL
+dotnet run --project src/IntelliDump.App /path/to/iis-worker.dmp --ai --ai-model qwen2.5-coder:7b --ai-endpoint http://localhost:11434/api/chat
 ```
 
 The tool never calls external services; all processing happens locally using [Microsoft.Diagnostics.Runtime](https://www.nuget.org/packages/Microsoft.Diagnostics.Runtime) to read the dump and a rules-based reasoner to rank findings. When `--ai` is enabled, IntelliDump posts the bounded context to a **local** text-generation endpoint (Ollama-compatible) so you can run a free model offline—tested with `phi3:mini`.
@@ -40,6 +42,7 @@ The tool never calls external services; all processing happens locally using [Mi
 
 - IntelliDump talks to an Ollama-compatible endpoint. With Ollama, models are stored automatically under your user profile (e.g., `%USERPROFILE%/.ollama/models` on Windows or `~/.ollama/models` on Linux/macOS).
 - To install a model locally, run `ollama pull phi3:mini` (or your chosen model) on the same machine that will run IntelliDump. No extra configuration in IntelliDump is needed as long as the endpoint can serve that model.
+- Chat-first models like **qwen2.5-coder:7b** work too—just point IntelliDump at a chat endpoint such as `http://localhost:11434/api/chat` instead of `/api/generate`; the app will auto-detect the payload shape.
 - If you host a compatible server elsewhere, update the endpoint (`--ai-endpoint` in CLI or the GUI field) to point to that host; just ensure it can access the model on its own filesystem.
 
 ## What it checks
