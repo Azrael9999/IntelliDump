@@ -47,13 +47,23 @@ public class LocalReasonerTests
     {
         var threads = new List<ThreadSnapshot>
         {
-            new(1, "Running", lockCount, threadException, false, false),
-            new(2, "Running", 0, null, false, false)
+            new(1, "Running", lockCount, threadException, false, false, Array.Empty<string>()),
+            new(2, "Running", 0, null, false, false, Array.Empty<string>())
         };
 
-        var gc = new GcSnapshot(totalHeapBytes, 10 * 1024 * 1024, 2, true);
+        var gc = new GcSnapshot(totalHeapBytes, 10 * 1024 * 1024, 2, true, 10, 10, 10, 0);
         var blocking = new BlockingSummary(syncBlocks, waitingThreads);
 
-        return new DumpSnapshot("fake.dmp", ".NET", threads, gc, blocking, Array.Empty<NotableString>());
+        return new DumpSnapshot(
+            "fake.dmp",
+            ".NET",
+            threads,
+            gc,
+            blocking,
+            Array.Empty<NotableString>(),
+            Array.Empty<DeadlockCandidate>(),
+            Array.Empty<HeapTypeStat>(),
+            Array.Empty<ModuleInfo>(),
+            Array.Empty<string>());
     }
 }

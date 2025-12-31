@@ -19,6 +19,8 @@ public sealed class LocalReasoner
         AddMemorySignals(snapshot, issues);
         AddBlockingSignals(snapshot, issues);
         AddCpuSignals(snapshot, issues);
+        AddDataAvailabilitySignals(snapshot, issues);
+        AddDeadlockSignals(snapshot, issues);
 
         if (issues.Count == 0)
         {
@@ -30,6 +32,18 @@ public sealed class LocalReasoner
         }
 
         return issues;
+    }
+
+    private static void AddDataAvailabilitySignals(DumpSnapshot snapshot, ICollection<AnalysisIssue> issues)
+    {
+        if (snapshot.Warnings.Count > 0)
+        {
+            issues.Add(new AnalysisIssue(
+                "Data availability warning",
+                IssueSeverity.Warning,
+                string.Join(Environment.NewLine, snapshot.Warnings),
+                "Consider capturing a full memory dump to improve heap-related analysis."));
+        }
     }
 
     private static void AddCrashSignals(DumpSnapshot snapshot, ICollection<AnalysisIssue> issues)
@@ -118,5 +132,23 @@ public sealed class LocalReasoner
                 $"{gcThreads} GC threads were present, which can accompany memory pressure or GC-induced pauses.",
                 "Inspect GC settings (server vs workstation), review allocation spikes, and consider enabling GC ETW events to confirm pause contributors."));
         }
+    }
+
+    private static void AddDeadlockSignals(DumpSnapshot snapshot, ICollection<AnalysisIssue> issues)
+    {
+        var candidates = snapshot.DeadlockCandidates.Where(d => d.WaitingThreads > 0).ToList();
+        if (candidates.Count == 0)
+        {
+            return;
+        }
+
+        var evidence = string.Join(Environment.NewLine, candidates.Select(c =>
+            $"Object 0x{c.ObjectAddress:X} owner={c.OwnerThreadId?.ToString() ?? "unknown"} waiting={c.WaitingThreads}"));
+
+        issues.Add(new AnalysisIssue(
+            "Potential deadlock/monitor contention",
+            IssueSeverity.Critical,
+            evidence,
+            "Inspect the owning and waiting thread stacks for shared monitors and blocking resources (DB/IO). Consider capturing contention ETW events in reproduction scenarios."));
     }
 }

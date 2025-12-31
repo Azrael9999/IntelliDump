@@ -10,8 +10,14 @@ public sealed class ConsoleReporter
         PrintHeader(snapshot);
         PrintIssues(issues);
         PrintThreadOverview(snapshot.Threads);
+        PrintTopStacks(snapshot.Threads);
         PrintGcOverview(snapshot.Gc);
         PrintNotableStrings(snapshot.Strings);
+        PrintHeapHistogram(snapshot.HeapTypes);
+        PrintDeadlocks(snapshot.DeadlockCandidates);
+        PrintModules(snapshot.LoadedModules);
+        PrintWarnings(snapshot.Warnings);
+        Console.WriteLine("PDF tip: use the GUI to export a hyperlinked report.");
     }
 
     private static void PrintHeader(DumpSnapshot snapshot)
@@ -78,6 +84,7 @@ public sealed class ConsoleReporter
         Console.WriteLine($"  LOH: {gc.LargeObjectHeapBytes / (1024 * 1024):N0} MB");
         Console.WriteLine($"  Segments: {gc.SegmentCount}");
         Console.WriteLine($"  GC mode: {(gc.IsServerGc ? "Server" : "Workstation")}");
+        Console.WriteLine($"  Gen0: {gc.Gen0Bytes / (1024 * 1024):N0} MB | Gen1: {gc.Gen1Bytes / (1024 * 1024):N0} MB | Gen2: {gc.Gen2Bytes / (1024 * 1024):N0} MB | Pinned: {gc.PinnedBytes / (1024 * 1024):N0} MB");
     }
 
     private static void PrintNotableStrings(IReadOnlyList<NotableString> strings)
@@ -98,5 +105,100 @@ public sealed class ConsoleReporter
             Console.WriteLine($"  {s.Value}");
             Console.WriteLine();
         }
+    }
+
+    private static void PrintHeapHistogram(IReadOnlyList<HeapTypeStat> types)
+    {
+        if (types.Count == 0)
+        {
+            return;
+        }
+
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("Heap top types");
+        Console.ResetColor();
+
+        foreach (var entry in types)
+        {
+            Console.WriteLine($"  {entry.TypeName} - {entry.TotalSize / (1024 * 1024):N0} MB across {entry.Count:N0} objects");
+        }
+        Console.WriteLine();
+    }
+
+    private static void PrintDeadlocks(IReadOnlyList<DeadlockCandidate> deadlocks)
+    {
+        if (deadlocks.Count == 0)
+        {
+            return;
+        }
+
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("Potential lock contention / deadlocks");
+        Console.ResetColor();
+
+        foreach (var d in deadlocks)
+        {
+            var owner = d.OwnerThreadId?.ToString() ?? "unknown";
+            Console.WriteLine($"  Object 0x{d.ObjectAddress:X} held by {owner}, waiting threads: {d.WaitingThreads}");
+        }
+        Console.WriteLine();
+    }
+
+    private static void PrintModules(IReadOnlyList<ModuleInfo> modules)
+    {
+        if (modules.Count == 0)
+        {
+            return;
+        }
+
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("Loaded modules (managed)");
+        Console.ResetColor();
+
+        foreach (var m in modules.OrderByDescending(m => m.Size).Take(15))
+        {
+            Console.WriteLine($"  {m.Name} - {m.Size / 1024:N0} KB");
+        }
+        Console.WriteLine();
+    }
+
+    private static void PrintTopStacks(IReadOnlyList<ThreadSnapshot> threads)
+    {
+        var withStacks = threads.Where(t => t.Stack.Count > 0).Take(5).ToList();
+        if (withStacks.Count == 0)
+        {
+            return;
+        }
+
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("Top thread stacks");
+        Console.ResetColor();
+
+        foreach (var t in withStacks)
+        {
+            Console.WriteLine($"  Thread {t.ManagedId} ({t.State}, locks: {t.LockCount}, exception: {t.CurrentException ?? "none"})");
+            foreach (var frame in t.Stack)
+            {
+                Console.WriteLine($"    {frame}");
+            }
+            Console.WriteLine();
+        }
+    }
+
+    private static void PrintWarnings(IReadOnlyList<string> warnings)
+    {
+        if (warnings.Count == 0)
+        {
+            return;
+        }
+
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("Warnings");
+        Console.ResetColor();
+        foreach (var warning in warnings)
+        {
+            Console.WriteLine($"  - {warning}");
+        }
+        Console.WriteLine();
     }
 }
