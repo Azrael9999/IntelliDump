@@ -151,7 +151,7 @@ public partial class MainWindow : Window
             $"Runtime: {snapshot.RuntimeDescription} | Threads shown: {snapshot.Threads.Count}/{snapshot.TotalThreadCount} | Warnings: {snapshot.Warnings.Count}";
 
         ThreadsSummary =
-            $"Running: {snapshot.Threads.Count(t => t.State.Contains(\"Running\", StringComparison.OrdinalIgnoreCase))} | Waiting: {snapshot.Threads.Count(t => t.State.Contains(\"Wait\", StringComparison.OrdinalIgnoreCase))} | Finalizers: {snapshot.FinalizerThreads.Count} | Deadlocks: {snapshot.DeadlockCandidates.Count}";
+            $"Running: {snapshot.Threads.Count(t => t.State.Contains("Running", StringComparison.OrdinalIgnoreCase))} | Waiting: {snapshot.Threads.Count(t => t.State.Contains("Wait", StringComparison.OrdinalIgnoreCase))} | Finalizers: {snapshot.FinalizerThreads.Count} | Deadlocks: {snapshot.DeadlockCandidates.Count}";
 
         GcSummary =
             $"Total heap: {snapshot.Gc.TotalHeapBytes / (1024 * 1024):N0} MB | LOH: {snapshot.Gc.LargeObjectHeapBytes / (1024 * 1024):N0} MB | Pinned: {snapshot.Gc.PinnedBytes / (1024 * 1024):N0} MB";
