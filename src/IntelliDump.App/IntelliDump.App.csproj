@@ -17,4 +17,12 @@
     <PackageReference Include="QuestPDF" Version="2024.8.8" />
   </ItemGroup>
 
+  <PropertyGroup Condition="'$(DesignTimeBuild)' == 'true' Or '$(DesignTimeBuild)' == 'True'">
+    <AvaloniaResourcesTemporaryFilePath>$(IntermediateOutputPath)/Avalonia/Design/resources</AvaloniaResourcesTemporaryFilePath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(DesignTimeBuild)' == '' Or ('$(DesignTimeBuild)' != 'true' And '$(DesignTimeBuild)' != 'True') ">
+    <AvaloniaResourcesTemporaryFilePath>$(IntermediateOutputPath)/Avalonia/Build/resources</AvaloniaResourcesTemporaryFilePath>
+  </PropertyGroup>
+
 </Project>
