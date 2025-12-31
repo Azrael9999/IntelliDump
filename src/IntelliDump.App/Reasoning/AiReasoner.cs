@@ -216,7 +216,25 @@ public sealed class AiReasoner
 
     private async Task<OllamaResponse?> InvokeAsync(AiSettings settings, string prompt, CancellationToken cancellationToken)
     {
-        var requestBody = new
+        var useChat = IsChatEndpoint(settings.Endpoint);
+
+        var requestBody = useChat
+            ? new
+            {
+                model = settings.Model,
+                messages = new[]
+                {
+                    new { role = "system", content = "You are IntelliDump, a .NET crash dump triage expert." },
+                    new { role = "user", content = prompt }
+                },
+                stream = false,
+                options = new
+                {
+                    temperature = 0.1,
+                    num_predict = 512
+                }
+            }
+            : new
         {
             model = settings.Model,
             prompt,
@@ -233,14 +251,22 @@ public sealed class AiReasoner
         {
             return new OllamaResponse
             {
-                Error = $"AI endpoint returned {(int)response.StatusCode} {response.ReasonPhrase}. Ensure the model is pulled locally (e.g., `ollama run {settings.Model}`)."
+                Error = $"AI endpoint returned {(int)response.StatusCode} {response.ReasonPhrase}. Ensure the model is pulled locally (e.g., `ollama run {settings.Model}`) and the endpoint matches the API type (generate vs chat)."
             };
         }
 
         var payload = await response.Content.ReadFromJsonAsync<OllamaResponse>(cancellationToken: cancellationToken);
         if (payload is not null)
         {
-            return payload;
+            var content = payload.Message?.Content ?? payload.Response;
+            if (!string.IsNullOrWhiteSpace(content))
+            {
+                return new OllamaResponse
+                {
+                    Response = content,
+                    Error = payload.Error
+                };
+            }
         }
 
         return new OllamaResponse { Error = "AI endpoint returned an empty response." };
@@ -260,12 +286,32 @@ public sealed class AiReasoner
     private static string Clamp(string value, int max) =>
         value.Length <= max ? value : value[..max] + "...";
 
+    private static bool IsChatEndpoint(string endpoint)
+    {
+        if (Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) &&
+            uri.AbsolutePath.Contains("/chat", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return endpoint.Contains("chat", StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class OllamaResponse
     {
         [JsonPropertyName("response")]
         public string? Response { get; init; }
 
+        [JsonPropertyName("message")]
+        public OllamaMessage? Message { get; init; }
+
         [JsonIgnore]
         public string? Error { get; init; }
+    }
+
+    private sealed class OllamaMessage
+    {
+        [JsonPropertyName("content")]
+        public string? Content { get; init; }
     }
 }
