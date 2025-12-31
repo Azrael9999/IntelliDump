@@ -10,6 +10,10 @@ public sealed class Options
     public string? JsonOutputPath { get; }
     public int MaxStackFrames { get; }
     public int TopStackThreads { get; }
+    public bool EnableAi { get; }
+    public string AiModel { get; }
+    public string AiEndpoint { get; }
+    public int AiContextChars { get; }
 
     public Options(
         string dumpPath,
@@ -19,7 +23,11 @@ public sealed class Options
         int heapHistogramCount,
         int maxStackFrames,
         int topStackThreads,
-        string? jsonOutputPath)
+        string? jsonOutputPath,
+        bool enableAi,
+        string aiModel,
+        string aiEndpoint,
+        int aiContextChars)
     {
         DumpPath = dumpPath;
         MaxStringsToCapture = maxStringsToCapture;
@@ -29,6 +37,10 @@ public sealed class Options
         MaxStackFrames = maxStackFrames;
         TopStackThreads = topStackThreads;
         JsonOutputPath = jsonOutputPath;
+        EnableAi = enableAi;
+        AiModel = aiModel;
+        AiEndpoint = aiEndpoint;
+        AiContextChars = aiContextChars;
     }
 
     public static Options FromArgs(string[] args)
@@ -46,6 +58,10 @@ public sealed class Options
         int maxStackFrames = 30;
         int topStackThreads = 5;
         string? jsonOutputPath = null;
+        bool enableAi = false;
+        string aiModel = "phi3:mini";
+        string aiEndpoint = "http://localhost:11434/api/generate";
+        int aiContextChars = 20000;
 
         for (var i = 1; i < args.Length; i++)
         {
@@ -114,6 +130,39 @@ public sealed class Options
                 jsonOutputPath = args[i + 1];
                 i++;
             }
+            else if (current is "--ai")
+            {
+                enableAi = true;
+            }
+            else if (current is "--ai-model")
+            {
+                if (i + 1 >= args.Length)
+                {
+                    throw new ArgumentException("Invalid value for --ai-model. Provide a model name known to your local runtime (e.g., phi3:mini).");
+                }
+
+                aiModel = args[i + 1];
+                i++;
+            }
+            else if (current is "--ai-endpoint")
+            {
+                if (i + 1 >= args.Length)
+                {
+                    throw new ArgumentException("Invalid value for --ai-endpoint. Provide a URL.");
+                }
+
+                aiEndpoint = args[i + 1];
+                i++;
+            }
+            else if (current is "--ai-context-chars")
+            {
+                if (i + 1 >= args.Length || !int.TryParse(args[i + 1], out aiContextChars))
+                {
+                    throw new ArgumentException("Invalid value for --ai-context-chars. Provide an integer number of characters.");
+                }
+
+                i++;
+            }
         }
 
         if (maxStringsToCapture < 0)
@@ -146,6 +195,11 @@ public sealed class Options
             topStackThreads = 5;
         }
 
+        if (aiContextChars < 4000)
+        {
+            aiContextChars = 4000;
+        }
+
         return new Options(
             dumpPath,
             maxStringsToCapture,
@@ -154,6 +208,10 @@ public sealed class Options
             heapHistogramCount,
             maxStackFrames,
             topStackThreads,
-            jsonOutputPath);
+            jsonOutputPath,
+            enableAi,
+            aiModel,
+            aiEndpoint,
+            aiContextChars);
     }
 }
