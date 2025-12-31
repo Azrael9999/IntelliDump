@@ -36,6 +36,12 @@ The tool never calls external services; all processing happens locally using [Mi
 3. Choose **Debug** → **Start Debugging** to launch the Avalonia GUI, or run `dotnet run` from the Package Manager Console for CLI usage.
 4. To enable local AI, ensure an Ollama-compatible endpoint is running (default `http://localhost:11434/api/generate`) and tick “Enable AI analysis” in the GUI, or pass `--ai` in the CLI arguments.
 
+## Where to put the AI model
+
+- IntelliDump talks to an Ollama-compatible endpoint. With Ollama, models are stored automatically under your user profile (e.g., `%USERPROFILE%/.ollama/models` on Windows or `~/.ollama/models` on Linux/macOS).
+- To install a model locally, run `ollama pull phi3:mini` (or your chosen model) on the same machine that will run IntelliDump. No extra configuration in IntelliDump is needed as long as the endpoint can serve that model.
+- If you host a compatible server elsewhere, update the endpoint (`--ai-endpoint` in CLI or the GUI field) to point to that host; just ensure it can access the model on its own filesystem.
+
 ## What it checks
 
 - Crashes/unhandled exceptions (faulting thread surfaced first).
