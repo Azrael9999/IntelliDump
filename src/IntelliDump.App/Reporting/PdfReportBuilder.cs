@@ -102,7 +102,12 @@ public static class PdfReportBuilder
                 var issue = issues[i];
                 col.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(c =>
                 {
-                    c.Item().Element(e => e.Anchor(anchor)).Text($"{issue.Severity}: {issue.Title}").SemiBold();
+                    // With this:
+                    c.Item().Text(x =>
+                    {
+                        x.Span($"{issue.Severity}: ").SemiBold();
+                        x.Hyperlink(issue.Title, $"#{anchor}").SemiBold();
+                    });
                     c.Item().Text(issue.Evidence);
                     c.Item().Text(issue.Recommendation).FontColor(Colors.Grey.Darken2);
                 });

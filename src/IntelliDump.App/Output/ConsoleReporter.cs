@@ -205,7 +205,9 @@ public sealed class ConsoleReporter
         foreach (var t in withStacks)
         {
             var truncated = t.CapturedStackFrames < t.RequestedStackFrames ? " (truncated)" : string.Empty;
-            Console.WriteLine($"  Thread {t.ManagedId} ({t.State}, locks: {t.LockCount}, exception: {t.CurrentException ?? "none"}, frames {t.CapturedStackFrames}/{t.RequestedStackFrames}{truncated}, CPUms:{t.CpuTimeMs?.ToString("N0") ?? "n/a"})");
+            // ... inside PrintTopStacks method
+            // ... inside PrintTopStacks method
+            Console.WriteLine($"  Thread {t.ManagedId} ({t.State}, locks: {t.LockCount}, exception: {t.CurrentException ?? "none"}, frames {t.CapturedStackFrames}/{t.RequestedStackFrames}{truncated}, CPUms:{t.CpuTimeMs?.ToString("N0") ?? "n / a"})");
             foreach (var frame in t.Stack)
             {
                 Console.WriteLine($"    {frame}");

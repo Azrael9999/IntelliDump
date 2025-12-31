@@ -9,7 +9,7 @@
         Background="#0F1624"
         Padding="20">
   <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="*" RowSpacing="16">
+    <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="*" >
       <Border Background="#16223a" CornerRadius="16" Padding="20">
         <StackPanel Spacing="12">
           <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
