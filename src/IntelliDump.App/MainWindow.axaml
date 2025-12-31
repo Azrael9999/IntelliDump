@@ -73,6 +73,12 @@
           <TextBlock Text="Threads &amp; GC" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
           <TextBlock Text="{Binding ThreadsSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
           <TextBlock Text="{Binding GcSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+          <TextBlock Text="Strings &amp; Coverage" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
+          <TextBlock Text="{Binding StringsSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+          <TextBlock Text="{Binding CoverageSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+          <TextBlock Text="Deadlocks &amp; Warnings" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
+          <TextBlock Text="{Binding DeadlockSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+          <TextBlock Text="{Binding WarningsSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
           <TextBlock Text="PDF Output" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
           <TextBlock Text="{Binding PdfPath}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
         </StackPanel>
