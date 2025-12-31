@@ -6,9 +6,15 @@ namespace IntelliDump.Output;
 
 public sealed class ConsoleReporter
 {
-    public void Render(DumpSnapshot snapshot, IReadOnlyList<AnalysisIssue> issues)
+    public void Render(
+        DumpSnapshot snapshot,
+        IReadOnlyList<AnalysisIssue> issues,
+        string? aiSummary = null,
+        string? aiProblems = null,
+        string? aiError = null)
     {
         PrintHeader(snapshot);
+        PrintAiInsight(aiSummary, aiProblems, aiError);
         PrintIssues(issues);
         PrintThreadOverview(snapshot.Threads);
         PrintTopStacks(snapshot.Threads);
@@ -19,6 +25,37 @@ public sealed class ConsoleReporter
         PrintModules(snapshot.LoadedModules, snapshot.TotalModuleCount);
         PrintWarnings(snapshot.Warnings);
         Console.WriteLine("PDF tip: use the GUI to export a hyperlinked report.");
+    }
+
+    private static void PrintAiInsight(string? aiSummary, string? aiProblems, string? aiError)
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("AI insight (local model)");
+        Console.ResetColor();
+
+        if (!string.IsNullOrWhiteSpace(aiSummary))
+        {
+            Console.WriteLine(aiSummary);
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("AI problem check");
+            Console.ResetColor();
+            Console.WriteLine(!string.IsNullOrWhiteSpace(aiProblems)
+                ? aiProblems
+                : "AI returned no problem list.");
+        }
+        else if (!string.IsNullOrWhiteSpace(aiError))
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"AI unavailable: {aiError}");
+            Console.ResetColor();
+        }
+        else
+        {
+            Console.WriteLine("AI disabled. Run with --ai to enable a local model (defaults to phi3:mini via Ollama).");
+        }
+
+        Console.WriteLine();
     }
 
     private static void PrintHeader(DumpSnapshot snapshot)

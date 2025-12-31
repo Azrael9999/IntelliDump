@@ -9,13 +9,13 @@
         Background="#0F1624"
         Padding="20">
   <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="*" >
+    <StackPanel Spacing="12">
       <Border Background="#16223a" CornerRadius="16" Padding="20">
         <StackPanel Spacing="12">
           <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
             <StackPanel Spacing="6">
               <TextBlock Text="IntelliDump Studio" FontSize="28" FontWeight="SemiBold" Foreground="#7de5ff"/>
-              <TextBlock Text="Offline, no-cloud IIS/.NET dump insights with PDF storytelling" Foreground="#c0d7ff" FontSize="14"/>
+              <TextBlock Text="AI-first dump insights—locally, no cloud." Foreground="#c0d7ff" FontSize="14"/>
             </StackPanel>
             <WrapPanel Grid.Column="1" HorizontalAlignment="Right">
               <Button Content="Open Dump" Click="OpenDump_Click" Margin="0,0,10,10"/>
@@ -27,88 +27,85 @@
                          IsVisible="{Binding IsAnalyzing}" IsIndeterminate="True"/> 
           </Grid>
 
-          <WrapPanel>
-            <StackPanel MinWidth="260" Width="320" Margin="0,0,12,12">
+          <WrapPanel ItemWidth="320" ItemHeight="Auto">
+            <StackPanel MinWidth="280" MaxWidth="420" Margin="0,0,12,12">
               <TextBlock Text="Dump" Foreground="#c0d7ff"/>
               <TextBox Text="{Binding DumpPath}" HorizontalAlignment="Stretch"/>
             </StackPanel>
-            <StackPanel MinWidth="140" Margin="0,0,12,12">
-              <TextBlock Text="Thread strings" Foreground="#c0d7ff"/>
-              <TextBox Text="{Binding StackStrings}"/>
+            <StackPanel MinWidth="220" MaxWidth="320" Margin="0,0,12,12">
+              <TextBlock Text="Capture options" Foreground="#c0d7ff"/>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel Width="120">
+                  <TextBlock Text="Thread strings" Foreground="#c0d7ff"/>
+                  <TextBox Text="{Binding StackStrings}"/>
+                </StackPanel>
+                <StackPanel Width="120">
+                  <TextBlock Text="Heap strings" Foreground="#c0d7ff"/>
+                  <TextBox Text="{Binding HeapStrings}"/>
+                </StackPanel>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                <StackPanel Width="120">
+                  <TextBlock Text="Stack frames" Foreground="#c0d7ff"/>
+                  <TextBox Text="{Binding MaxStackFrames}"/>
+                </StackPanel>
+                <StackPanel Width="120">
+                  <TextBlock Text="Heap histogram" Foreground="#c0d7ff"/>
+                  <TextBox Text="{Binding HeapHistogram}"/>
+                </StackPanel>
+              </StackPanel>
             </StackPanel>
-            <StackPanel MinWidth="140" Margin="0,0,12,12">
-              <TextBlock Text="Max string length" Foreground="#c0d7ff"/>
-              <TextBox Text="{Binding MaxStringLength}"/>
+            <StackPanel MinWidth="240" MaxWidth="340" Margin="0,0,12,12">
+              <TextBlock Text="Local AI (Ollama-compatible)" Foreground="#c0d7ff"/>
+              <CheckBox IsChecked="{Binding UseAi}" Content="Enable AI analysis" Foreground="#c0d7ff"/>
+              <TextBlock Text="Model" Foreground="#c0d7ff" Margin="0,6,0,0"/>
+              <TextBox Text="{Binding AiModel}" ToolTip.Tip="Defaults to phi3:mini; model must be available locally."/>
+              <TextBlock Text="Endpoint" Foreground="#c0d7ff" Margin="0,6,0,0"/>
+              <TextBox Text="{Binding AiEndpoint}" ToolTip.Tip="Ollama-compatible text generation endpoint."/>
+              <TextBlock Text="Context chars" Foreground="#c0d7ff" Margin="0,6,0,0"/>
+              <TextBox Text="{Binding AiContextChars}" ToolTip.Tip="Character budget for the AI prompt."/>
             </StackPanel>
-            <StackPanel MinWidth="140" Margin="0,0,12,12">
-              <TextBlock Text="Heap histogram" Foreground="#c0d7ff"/>
-              <TextBox Text="{Binding HeapHistogram}"/>
-            </StackPanel>
-            <StackPanel MinWidth="140" Margin="0,0,12,12">
-              <TextBlock Text="Stack threads" Foreground="#c0d7ff"/>
-              <TextBox Text="{Binding TopStackThreads}"/>
-            </StackPanel>
-            <StackPanel MinWidth="140" Margin="0,0,12,12">
-              <TextBlock Text="Stack frames" Foreground="#c0d7ff"/>
-              <TextBox Text="{Binding MaxStackFrames}"/>
-            </StackPanel>
-            <StackPanel MinWidth="140" Margin="0,0,12,12">
-              <TextBlock Text="Heap strings" Foreground="#c0d7ff"/>
-              <TextBox Text="{Binding HeapStrings}"/>
+            <StackPanel MinWidth="240" MaxWidth="420" Margin="0,0,12,12">
+              <TextBlock Text="Ask the AI (after analysis)" Foreground="#c0d7ff"/>
+              <TextBox Text="{Binding AiQuestion}" AcceptsReturn="True" Height="80" TextWrapping="Wrap" Watermark="e.g., 'Is this a GC pause or deadlock? What should I fix first?'"/>
+              <Button Content="Ask AI" Click="AskAi_Click" Margin="0,6,0,0" Background="#22c55e"/>
             </StackPanel>
           </WrapPanel>
         </StackPanel>
       </Border>
 
-      <Grid Grid.Row="1" RowDefinitions="Auto,Auto" ColumnDefinitions="*" RowSpacing="12">
-        <WrapPanel>
-          <Border Background="#16223a" CornerRadius="16" Padding="16" Width="360" MinWidth="320" Margin="0,0,12,12">
-            <StackPanel Spacing="10">
-              <TextBlock Text="Status" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold"/>
-              <TextBlock Text="{Binding Status}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
-              <TextBlock Text="Findings" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
-              <ScrollViewer Height="260">
-                <ItemsControl ItemsSource="{Binding Findings}">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                      <Border Margin="0,6,0,6" Padding="10" CornerRadius="10"
-                              Background="{Binding SeverityColor}">
-                        <StackPanel>
-                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
-                          <TextBlock Text="{Binding Evidence}" TextWrapping="Wrap"/>
-                          <TextBlock Text="{Binding Recommendation}" TextWrapping="Wrap" FontStyle="Italic"/>
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </ScrollViewer>
-            </StackPanel>
-          </Border>
+      <WrapPanel ItemWidth="520" ItemHeight="Auto">
+        <Border Background="#16223a" CornerRadius="16" Padding="16" Width="520" MinWidth="320" Margin="0,0,12,12">
+          <StackPanel Spacing="10">
+            <TextBlock Text="AI Problems" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding AiProblems}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
 
-          <Border Background="#16223a" CornerRadius="16" Padding="16" Width="520" MinWidth="360" Margin="0,0,12,12">
-            <StackPanel Spacing="10">
-              <TextBlock Text="Highlights" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold"/>
-              <TextBlock Text="{Binding HighlightSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
-              <TextBlock Text="Threads &amp; GC" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
-              <TextBlock Text="{Binding ThreadsSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
-              <TextBlock Text="{Binding GcSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
-              <TextBlock Text="Strings &amp; Coverage" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
-              <TextBlock Text="{Binding StringsSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
-              <TextBlock Text="{Binding CoverageSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
-              <TextBlock Text="Deadlocks &amp; Warnings" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
-              <TextBlock Text="{Binding DeadlockSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
-              <TextBlock Text="{Binding WarningsSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
-              <TextBlock Text="PDF Output" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
-              <TextBlock Text="{Binding PdfPath}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
-            </StackPanel>
-          </Border>
-        </WrapPanel>
-      </Grid>
+        <Border Background="#16223a" CornerRadius="16" Padding="16" Width="520" MinWidth="320" Margin="0,0,12,12">
+          <StackPanel Spacing="10">
+            <TextBlock Text="AI Summary" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding AiSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+            <TextBlock Text="AI Q&A" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
+            <TextBlock Text="{Binding AiQuestionAnswer}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
 
-      <TextBlock Grid.Row="2" HorizontalAlignment="Center" Foreground="#6b7280" Margin="0,10,0,0"
+        <Border Background="#16223a" CornerRadius="16" Padding="16" Width="520" MinWidth="320" Margin="0,0,12,12">
+          <StackPanel Spacing="10">
+            <TextBlock Text="Status" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding Status}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+            <TextBlock Text="Warnings" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
+            <TextBlock Text="{Binding WarningsSummary}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+            <TextBlock Text="PDF Output" Foreground="#7de5ff" FontSize="18" FontWeight="SemiBold" Margin="0,12,0,0"/>
+            <TextBlock Text="{Binding PdfPath}" Foreground="#c0d7ff" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
+      </WrapPanel>
+
+      <TextBlock HorizontalAlignment="Center" Foreground="#6b7280" Margin="0,10,0,0"
                  Text="IntelliDump runs fully offline • powered by CLRMD + QuestPDF + Avalonia"
                  FontSize="12"/>
-    </Grid>
+    </StackPanel>
   </ScrollViewer>
 </Window>
