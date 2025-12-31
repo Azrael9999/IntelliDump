@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -16,6 +17,7 @@ public partial class MainWindow : Window
 {
     private readonly DumpLoader _loader = new();
     private readonly LocalReasoner _reasoner = new();
+    private readonly AiReasoner _aiReasoner = new();
     private DumpSnapshot? _lastSnapshot;
     private IReadOnlyList<AnalysisIssue>? _lastIssues;
 
@@ -32,6 +34,10 @@ public partial class MainWindow : Window
     public string CoverageSummary { get; set; } = string.Empty;
     public string DeadlockSummary { get; set; } = string.Empty;
     public string WarningsSummary { get; set; } = string.Empty;
+    public string AiSummary { get; set; } = "AI disabled.";
+    public string AiProblems { get; set; } = string.Empty;
+    public string AiQuestion { get; set; } = string.Empty;
+    public string AiQuestionAnswer { get; set; } = "Ask a question about this dump once analysis is complete.";
     public string PdfPath { get; set; } = string.Empty;
     public int StackStrings { get; set; } = 5;
     public int HeapStrings { get; set; } = 5;
@@ -39,6 +45,10 @@ public partial class MainWindow : Window
     public int HeapHistogram { get; set; } = 15;
     public int TopStackThreads { get; set; } = 5;
     public int MaxStackFrames { get; set; } = 30;
+    public bool UseAi { get; set; }
+    public string AiModel { get; set; } = "phi3:mini";
+    public string AiEndpoint { get; set; } = "http://localhost:11434/api/generate";
+    public int AiContextChars { get; set; } = 20000;
 
     public MainWindow()
     {
@@ -101,6 +111,8 @@ public partial class MainWindow : Window
         RefreshBindings();
     }
 
+    private bool CanAskAi() => UseAi && _lastSnapshot is not null && _lastIssues is not null;
+
     private async Task RunAnalysisAsync()
     {
         if (string.IsNullOrWhiteSpace(DumpPath) || !File.Exists(DumpPath))
@@ -124,10 +136,38 @@ public partial class MainWindow : Window
                 HeapHistogram,
                 MaxStackFrames,
                 TopStackThreads,
-                null);
+                null,
+                UseAi,
+                AiModel,
+                AiEndpoint,
+                AiContextChars);
 
             DumpSnapshot snapshot = await Task.Run(() => _loader.Load(options));
             var issues = _reasoner.Analyze(snapshot);
+            AiSummary = "AI disabled.";
+            AiProblems = string.Empty;
+            AiQuestionAnswer = "Ask a question about this dump once analysis is complete.";
+
+            if (UseAi)
+            {
+                AiSummary = "Summarizing with local AI...";
+                RefreshBindings();
+                try
+                {
+                    var aiResult = await _aiReasoner.AnalyzeAsync(
+                        snapshot,
+                        issues,
+                        new AiSettings(AiModel, AiEndpoint, AiContextChars),
+                        CancellationToken.None);
+                    AiSummary = aiResult.Summary ?? $"AI unavailable: {aiResult.Error}";
+                    AiProblems = aiResult.Problems ?? string.Empty;
+                }
+                catch (Exception ex)
+                {
+                    AiSummary = $"AI request failed: {ex.Message}";
+                    AiProblems = string.Empty;
+                }
+            }
 
             _lastSnapshot = snapshot;
             _lastIssues = issues;
@@ -141,6 +181,44 @@ public partial class MainWindow : Window
         finally
         {
             IsAnalyzing = false;
+        }
+
+        RefreshBindings();
+    }
+
+    private async void AskAi_Click(object? sender, RoutedEventArgs e)
+    {
+        if (!CanAskAi())
+        {
+            AiQuestionAnswer = "Run analysis with AI enabled before asking questions.";
+            RefreshBindings();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(AiQuestion))
+        {
+            AiQuestionAnswer = "Enter a question to ask the AI.";
+            RefreshBindings();
+            return;
+        }
+
+        AiQuestionAnswer = "Thinking...";
+        RefreshBindings();
+
+        try
+        {
+            var result = await _aiReasoner.AnswerQuestionAsync(
+                _lastSnapshot!,
+                _lastIssues!,
+                AiQuestion,
+                new AiSettings(AiModel, AiEndpoint, AiContextChars),
+                CancellationToken.None);
+
+            AiQuestionAnswer = result.Answer ?? $"AI unavailable: {result.Error}";
+        }
+        catch (Exception ex)
+        {
+            AiQuestionAnswer = $"AI request failed: {ex.Message}";
         }
 
         RefreshBindings();
