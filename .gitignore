@@ -1,0 +1,17 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio / VS Code
+.vscode/
+.vs/
+
+# User-specific files
+*.user
+*.suo
+*.userprefs
+
+# Dotnet tooling
+*.dotCover
+TestResult*
+*.ncrunchsolution
