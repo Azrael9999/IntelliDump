@@ -3,8 +3,10 @@ using IntelliDump;
 using IntelliDump.Diagnostics;
 using IntelliDump.Output;
 using IntelliDump.Reasoning;
+using QuestPDF.Infrastructure;
 
 var builtApp = BuildAvaloniaApp();
+QuestPDF.Settings.License = LicenseType.Community;
 
 if (args.Length > 0 && args[0] != "--gui")
 {
