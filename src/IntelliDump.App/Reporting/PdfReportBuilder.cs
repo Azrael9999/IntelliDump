@@ -52,19 +52,33 @@ public static class PdfReportBuilder
         container.PaddingTop(10).Column(col =>
         {
             col.Item().Text("Summary").FontSize(16).SemiBold();
-            col.Item().Text($"Findings: {issues.Count} | Deadlocks: {snapshot.DeadlockCandidates.Count} | LOH: {snapshot.Gc.LargeObjectHeapBytes / (1024 * 1024):N0} MB");
+            col.Item().Text($"Findings: {issues.Count} | Deadlocks: {snapshot.DeadlockCandidates.Count} | Warnings: {snapshot.Warnings.Count} | LOH: {snapshot.Gc.LargeObjectHeapBytes / (1024 * 1024):N0} MB");
+            col.Item().Text($"Threads shown: {snapshot.Threads.Count} of {snapshot.TotalThreadCount}; Strings: {snapshot.UniqueStringCount} unique / {snapshot.TotalStringOccurrences} occurrences (stack {snapshot.StackStringOccurrences}, heap {snapshot.HeapStringOccurrences})");
+            col.Item().Text($"Heap types shown: {snapshot.HeapTypes.Count} of {snapshot.TotalHeapTypeCount} covering {(snapshot.HeapHistogramCoverage * 100):N1}% of managed heap ({snapshot.TotalHeapObjectCount:N0} objects over {snapshot.Gc.TotalHeapBytes / (1024 * 1024):N0} MB); Modules shown: {Math.Min(20, snapshot.LoadedModules.Count)} of {snapshot.TotalModuleCount} covering {(snapshot.ModuleCoverageShown * 100):N1}% of {snapshot.TotalModuleBytes / (1024 * 1024):N0} MB");
+            col.Item().Text($"Threads analyzed: {snapshot.Threads.Count} shown of {snapshot.TotalThreadCount} total");
+            if (snapshot.DeadlockCandidates.Count > 0)
+            {
+                var first = snapshot.DeadlockCandidates.First();
+                col.Item().Text($"Deadlock candidates detected: {snapshot.DeadlockCandidates.Count} (e.g., object 0x{first.ObjectAddress:X} owner={first.OwnerThreadId?.ToString() ?? "unknown"} waiting={first.WaitingThreads})").FontColor(Colors.Red.Medium);
+            }
+            if (snapshot.Warnings.Count > 0)
+            {
+                col.Item().Text($"Data warnings present (see Warnings section)").FontColor(Colors.Red.Medium);
+            }
 
             col.Item().PaddingVertical(8).Row(row =>
             {
                 row.RelativeItem().Background("#f3f4f6").Padding(8).Text("Findings (tap to jump)").SemiBold();
             });
 
-            foreach (var issue in issues)
+            for (var i = 0; i < issues.Count; i++)
             {
+                var anchor = $"issue-{i + 1}";
+                var issue = issues[i];
                 col.Item().Text(x =>
                 {
                     x.Span("• ").FontColor(Colors.Blue.Medium);
-                    x.Hyperlink(issue.Title, "threads").FontSize(12).SemiBold();
+                    x.Hyperlink(issue.Title, $"#{anchor}").FontSize(12).SemiBold();
                 });
             }
 
@@ -82,11 +96,13 @@ public static class PdfReportBuilder
         container.Column(col =>
         {
             col.Item().Text("Findings").FontSize(16).SemiBold();
-            foreach (var issue in issues)
+            for (var i = 0; i < issues.Count; i++)
             {
+                var anchor = $"issue-{i + 1}";
+                var issue = issues[i];
                 col.Item().Border(1).BorderColor(Colors.Grey.Lighten2).Padding(8).Column(c =>
                 {
-                    c.Item().Text($"{issue.Severity}: {issue.Title}").SemiBold();
+                    c.Item().Element(e => e.Anchor(anchor)).Text($"{issue.Severity}: {issue.Title}").SemiBold();
                     c.Item().Text(issue.Evidence);
                     c.Item().Text(issue.Recommendation).FontColor(Colors.Grey.Darken2);
                 });
@@ -98,10 +114,12 @@ public static class PdfReportBuilder
     {
         container.Column(col =>
         {
-            col.Item().Text("Threads").FontSize(16).SemiBold();
-            foreach (var thread in snapshot.Threads.Take(10))
+            const int threadDisplay = 10;
+            col.Item().Text($"Threads (top {Math.Min(threadDisplay, snapshot.Threads.Count)} of {snapshot.TotalThreadCount})").FontSize(16).SemiBold();
+            foreach (var thread in snapshot.Threads.Take(threadDisplay))
             {
-                col.Item().PaddingBottom(6).Text($"#{thread.ManagedId} {thread.State} Locks:{thread.LockCount} Exception:{thread.CurrentException ?? "none"}");
+                var truncated = thread.CapturedStackFrames < thread.RequestedStackFrames ? " (truncated)" : string.Empty;
+                col.Item().PaddingBottom(6).Text($"#{thread.ManagedId} {thread.State} Locks:{thread.LockCount} Exception:{thread.CurrentException ?? "none"} Frames:{thread.CapturedStackFrames}/{thread.RequestedStackFrames}{truncated} CPUms:{thread.CpuTimeMs?.ToString("N0") ?? "n/a"}");
                 if (thread.Stack.Count > 0)
                 {
                     col.Item().Text(t =>
@@ -124,8 +142,9 @@ public static class PdfReportBuilder
 
             if (snapshot.HeapTypes.Count > 0)
             {
-                col.Item().Text("Top heap types:").SemiBold();
-                foreach (var type in snapshot.HeapTypes.Take(10))
+                const int heapDisplay = 10;
+                col.Item().Text($"Top heap types (top {Math.Min(heapDisplay, snapshot.HeapTypes.Count)} of {snapshot.TotalHeapTypeCount}, covering {(snapshot.HeapHistogramCoverage * 100):N1}%):").SemiBold();
+                foreach (var type in snapshot.HeapTypes.Take(heapDisplay))
                 {
                     col.Item().Text($"- {type.TypeName} ({type.TotalSize / (1024 * 1024):N0} MB across {type.Count:N0})");
                 }
@@ -142,11 +161,32 @@ public static class PdfReportBuilder
 
         container.Column(col =>
         {
-            col.Item().Text("Captured strings").FontSize(16).SemiBold();
-            foreach (var s in snapshot.Strings.Take(10))
+            const int stringDisplay = 10;
+            col.Item().Text($"Captured strings (top {Math.Min(stringDisplay, snapshot.Strings.Count)} of {snapshot.Strings.Count})").FontSize(16).SemiBold();
+            foreach (var s in snapshot.Strings.Take(stringDisplay))
             {
-                col.Item().Text($"[T{s.ThreadId}] len={s.TotalLength:N0}{(s.WasTruncated ? " (truncated)" : "")}");
+                var threadInfo = s.ThreadIds.Count == 0 ? "heap" : string.Join(", ", s.ThreadIds.Take(5));
+                if (s.ThreadIds.Count > 5)
+                {
+                    threadInfo += " ...";
+                }
+
+                col.Item().Text($"[{s.Source}] count={s.Occurrences:N0} threads={threadInfo} len={s.TotalLength:N0}{(s.WasTruncated ? " (truncated)" : "")}");
                 col.Item().Text(s.Value).FontColor(Colors.Grey.Darken2);
+            }
+
+            var hotDuplicates = snapshot.Strings
+                .Where(s => s.Occurrences > 1)
+                .OrderByDescending(s => s.Occurrences)
+                .Take(5)
+                .ToList();
+            if (hotDuplicates.Count > 0)
+            {
+                col.Item().PaddingTop(6).Text("Top duplicate strings").SemiBold();
+                foreach (var dup in hotDuplicates)
+                {
+                    col.Item().Text($"- count={dup.Occurrences:N0} len={dup.TotalLength:N0} sample: {dup.Value}");
+                }
             }
         });
     }
@@ -160,8 +200,9 @@ public static class PdfReportBuilder
 
         container.Column(col =>
         {
-            col.Item().Text("Managed modules").FontSize(16).SemiBold();
-            foreach (var m in snapshot.LoadedModules.OrderByDescending(m => m.Size).Take(20))
+            const int moduleDisplay = 20;
+            col.Item().Text($"Managed modules (top {Math.Min(moduleDisplay, snapshot.LoadedModules.Count)} of {snapshot.TotalModuleCount})").FontSize(16).SemiBold();
+            foreach (var m in snapshot.LoadedModules.OrderByDescending(m => m.Size).Take(moduleDisplay))
             {
                 col.Item().Text($"- {m.Name} ({m.Size / 1024:N0} KB)");
             }
@@ -178,9 +219,13 @@ public static class PdfReportBuilder
         container.Column(col =>
         {
             col.Item().Text("Warnings").FontSize(16).SemiBold();
-            foreach (var w in snapshot.Warnings)
+            foreach (var group in snapshot.Warnings.GroupBy(w => w.Category))
             {
-                col.Item().Text($"- {w}").FontColor(Colors.Red.Medium);
+                col.Item().Text(group.Key.ToString()).SemiBold();
+                foreach (var w in group)
+                {
+                    col.Item().Text($"- {w.Message}").FontColor(Colors.Red.Medium);
+                }
             }
         });
     }

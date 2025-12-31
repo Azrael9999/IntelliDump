@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace IntelliDump.Diagnostics;
 
@@ -9,13 +11,41 @@ public sealed record ThreadSnapshot(
     string? CurrentException,
     bool IsFinalizer,
     bool IsGcThread,
-    IReadOnlyList<string> Stack);
+    IReadOnlyList<string> Stack,
+    int CapturedStackFrames,
+    int RequestedStackFrames,
+    double? CpuTimeMs);
+
+public enum StringSource
+{
+    Stack,
+    Heap,
+    StackAndHeap
+}
 
 public sealed record NotableString(
-    int ThreadId,
+    IReadOnlyList<int> ThreadIds,
     string Value,
     int TotalLength,
-    bool WasTruncated);
+    bool WasTruncated,
+    StringSource Source,
+    int Occurrences);
+
+public enum WarningCategory
+{
+    HeapUnavailable,
+    ThreadSelection,
+    ThreadTruncation,
+    StackReadPartial,
+    StringClamp,
+    StringDedupe,
+    HeapStringClamp,
+    ModuleClamp,
+    HeapHistogramClamp,
+    Other
+}
+
+public sealed record DataWarning(WarningCategory Category, string Message);
 
 public sealed record GcSnapshot(
     ulong TotalHeapBytes,
@@ -41,6 +71,7 @@ public sealed record ModuleInfo(string Name, ulong Size);
 public sealed record DumpSnapshot(
     string DumpPath,
     string? RuntimeDescription,
+    int TotalThreadCount,
     IReadOnlyList<ThreadSnapshot> Threads,
     GcSnapshot Gc,
     BlockingSummary Blocking,
@@ -48,7 +79,17 @@ public sealed record DumpSnapshot(
     IReadOnlyList<DeadlockCandidate> Deadlocks,
     IReadOnlyList<HeapTypeStat> HeapHistogram,
     IReadOnlyList<ModuleInfo> Modules,
-    IReadOnlyList<string> Warnings)
+    int TotalHeapTypeCount,
+    int TotalModuleCount,
+    long TotalModuleBytes,
+    double ModuleCoverageShown,
+    int UniqueStringCount,
+    int TotalStringOccurrences,
+    int StackStringOccurrences,
+    int HeapStringOccurrences,
+    int TotalHeapObjectCount,
+    double HeapHistogramCoverage,
+    IReadOnlyList<DataWarning> Warnings)
 {
     public ThreadSnapshot? FaultingThread =>
         Threads.FirstOrDefault(t => !string.IsNullOrWhiteSpace(t.CurrentException));

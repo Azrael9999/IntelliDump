@@ -1,3 +1,4 @@
+using System.Linq;
 using IntelliDump.Diagnostics;
 using IntelliDump.Reasoning;
 
@@ -15,7 +16,7 @@ public sealed class ConsoleReporter
         PrintNotableStrings(snapshot.Strings);
         PrintHeapHistogram(snapshot.HeapTypes);
         PrintDeadlocks(snapshot.DeadlockCandidates);
-        PrintModules(snapshot.LoadedModules);
+        PrintModules(snapshot.LoadedModules, snapshot.TotalModuleCount);
         PrintWarnings(snapshot.Warnings);
         Console.WriteLine("PDF tip: use the GUI to export a hyperlinked report.");
     }
@@ -27,7 +28,16 @@ public sealed class ConsoleReporter
         Console.ResetColor();
         Console.WriteLine($"Dump: {snapshot.DumpPath}");
         Console.WriteLine($"Runtime: {snapshot.RuntimeDescription}");
-        Console.WriteLine($"Threads: {snapshot.Threads.Count}");
+        Console.WriteLine($"Threads shown: {snapshot.Threads.Count} of {snapshot.TotalThreadCount}");
+        Console.WriteLine($"Strings: {snapshot.UniqueStringCount} unique / {snapshot.TotalStringOccurrences} occurrences (stack {snapshot.StackStringOccurrences}, heap {snapshot.HeapStringOccurrences})");
+        Console.WriteLine($"Heap types: {snapshot.HeapTypes.Count} of {snapshot.TotalHeapTypeCount} shown ({snapshot.HeapHistogramCoverage * 100:N1}% of {snapshot.Gc.TotalHeapBytes / (1024 * 1024):N0} MB, {snapshot.TotalHeapObjectCount:N0} objects); modules: {Math.Min(15, snapshot.LoadedModules.Count)} of {snapshot.TotalModuleCount} shown ({snapshot.ModuleCoverageShown * 100:N1}% of {snapshot.TotalModuleBytes / (1024 * 1024):N0} MB)");
+        if (snapshot.DeadlockCandidates.Count > 0)
+        {
+            var first = snapshot.DeadlockCandidates.First();
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"*** DEADLOCK candidates: {snapshot.DeadlockCandidates.Count} (e.g., object 0x{first.ObjectAddress:X} owner={first.OwnerThreadId?.ToString() ?? "unknown"} waiting={first.WaitingThreads}) ***");
+            Console.ResetColor();
+        }
         Console.WriteLine();
     }
 
@@ -96,13 +106,31 @@ public sealed class ConsoleReporter
 
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.WriteLine();
-        Console.WriteLine("Thread-captured strings (SQL/XML etc.)");
+        Console.WriteLine("Captured strings (SQL/XML etc.)");
         Console.ResetColor();
 
-        foreach (var s in strings)
+        const int stringDisplay = 10;
+        foreach (var s in strings.Take(stringDisplay))
         {
-            Console.WriteLine($"  [T{s.ThreadId}] length={s.TotalLength:N0}{(s.WasTruncated ? " (truncated)" : string.Empty)}");
+            var threadInfo = s.ThreadIds.Count == 0 ? "heap" : string.Join(", ", s.ThreadIds.Take(5));
+            if (s.ThreadIds.Count > 5)
+            {
+                threadInfo += " ...";
+            }
+
+            Console.WriteLine($"  [{s.Source}] count={s.Occurrences:N0} threads={threadInfo} length={s.TotalLength:N0}{(s.WasTruncated ? " (truncated)" : string.Empty)}");
             Console.WriteLine($"  {s.Value}");
+            Console.WriteLine();
+        }
+
+        var hotDuplicates = strings.Where(s => s.Occurrences > 1).OrderByDescending(s => s.Occurrences).Take(5).ToList();
+        if (hotDuplicates.Count > 0)
+        {
+            Console.WriteLine("  Top duplicate strings:");
+            foreach (var dup in hotDuplicates)
+            {
+                Console.WriteLine($"    count={dup.Occurrences:N0} len={dup.TotalLength:N0} sample: {dup.Value}");
+            }
             Console.WriteLine();
         }
     }
@@ -115,7 +143,7 @@ public sealed class ConsoleReporter
         }
 
         Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine("Heap top types");
+        Console.WriteLine($"Heap top types (showing {types.Count})");
         Console.ResetColor();
 
         foreach (var entry in types)
@@ -144,7 +172,7 @@ public sealed class ConsoleReporter
         Console.WriteLine();
     }
 
-    private static void PrintModules(IReadOnlyList<ModuleInfo> modules)
+    private static void PrintModules(IReadOnlyList<ModuleInfo> modules, int totalModuleCount)
     {
         if (modules.Count == 0)
         {
@@ -152,7 +180,7 @@ public sealed class ConsoleReporter
         }
 
         Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine("Loaded modules (managed)");
+        Console.WriteLine($"Loaded modules (managed) - showing top {Math.Min(15, modules.Count)} of {totalModuleCount}");
         Console.ResetColor();
 
         foreach (var m in modules.OrderByDescending(m => m.Size).Take(15))
@@ -176,7 +204,8 @@ public sealed class ConsoleReporter
 
         foreach (var t in withStacks)
         {
-            Console.WriteLine($"  Thread {t.ManagedId} ({t.State}, locks: {t.LockCount}, exception: {t.CurrentException ?? "none"})");
+            var truncated = t.CapturedStackFrames < t.RequestedStackFrames ? " (truncated)" : string.Empty;
+            Console.WriteLine($"  Thread {t.ManagedId} ({t.State}, locks: {t.LockCount}, exception: {t.CurrentException ?? "none"}, frames {t.CapturedStackFrames}/{t.RequestedStackFrames}{truncated}, CPUms:{t.CpuTimeMs?.ToString(\"N0\") ?? "n/a"})");
             foreach (var frame in t.Stack)
             {
                 Console.WriteLine($"    {frame}");
@@ -185,7 +214,7 @@ public sealed class ConsoleReporter
         }
     }
 
-    private static void PrintWarnings(IReadOnlyList<string> warnings)
+    private static void PrintWarnings(IReadOnlyList<DataWarning> warnings)
     {
         if (warnings.Count == 0)
         {
@@ -195,9 +224,13 @@ public sealed class ConsoleReporter
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.WriteLine("Warnings");
         Console.ResetColor();
-        foreach (var warning in warnings)
+        foreach (var group in warnings.GroupBy(w => w.Category))
         {
-            Console.WriteLine($"  - {warning}");
+            Console.WriteLine($"  {group.Key}:");
+            foreach (var warning in group)
+            {
+                Console.WriteLine($"    - {warning.Message}");
+            }
         }
         Console.WriteLine();
     }

@@ -26,6 +26,10 @@ public partial class MainWindow : Window
     public string HighlightSummary { get; set; } = string.Empty;
     public string ThreadsSummary { get; set; } = string.Empty;
     public string GcSummary { get; set; } = string.Empty;
+    public string StringsSummary { get; set; } = string.Empty;
+    public string CoverageSummary { get; set; } = string.Empty;
+    public string DeadlockSummary { get; set; } = string.Empty;
+    public string WarningsSummary { get; set; } = string.Empty;
     public string PdfPath { get; set; } = string.Empty;
     public int StackStrings { get; set; } = 5;
     public int HeapStrings { get; set; } = 5;
@@ -144,13 +148,35 @@ public partial class MainWindow : Window
         }
 
         HighlightSummary =
-            $"Runtime: {snapshot.RuntimeDescription} | Threads: {snapshot.Threads.Count} | Warnings: {snapshot.Warnings.Count}";
+            $"Runtime: {snapshot.RuntimeDescription} | Threads shown: {snapshot.Threads.Count}/{snapshot.TotalThreadCount} | Warnings: {snapshot.Warnings.Count}";
 
         ThreadsSummary =
-            $"Finalizers: {snapshot.FinalizerThreads.Count} | Deadlocks: {snapshot.DeadlockCandidates.Count} | Stack strings: {snapshot.Strings.Count}";
+            $"Running: {snapshot.Threads.Count(t => t.State.Contains(\"Running\", StringComparison.OrdinalIgnoreCase))} | Waiting: {snapshot.Threads.Count(t => t.State.Contains(\"Wait\", StringComparison.OrdinalIgnoreCase))} | Finalizers: {snapshot.FinalizerThreads.Count} | Deadlocks: {snapshot.DeadlockCandidates.Count}";
 
         GcSummary =
             $"Total heap: {snapshot.Gc.TotalHeapBytes / (1024 * 1024):N0} MB | LOH: {snapshot.Gc.LargeObjectHeapBytes / (1024 * 1024):N0} MB | Pinned: {snapshot.Gc.PinnedBytes / (1024 * 1024):N0} MB";
+
+        StringsSummary =
+            $"Strings: {snapshot.UniqueStringCount} unique / {snapshot.TotalStringOccurrences} occurrences (stack {snapshot.StackStringOccurrences}, heap {snapshot.HeapStringOccurrences}) | Captured strings: {snapshot.Strings.Count}";
+
+        CoverageSummary =
+            $"Heap types: {snapshot.HeapTypes.Count}/{snapshot.TotalHeapTypeCount} covering {snapshot.HeapHistogramCoverage * 100:N1}% | Modules: {Math.Min(20, snapshot.LoadedModules.Count)}/{snapshot.TotalModuleCount} covering {snapshot.ModuleCoverageShown * 100:N1}% of {snapshot.TotalModuleBytes / (1024 * 1024):N0} MB";
+
+        if (snapshot.DeadlockCandidates.Count > 0)
+        {
+            var first = snapshot.DeadlockCandidates.First();
+            DeadlockSummary = $"Deadlock candidates detected: {snapshot.DeadlockCandidates.Count} (e.g., object 0x{first.ObjectAddress:X} owner={first.OwnerThreadId?.ToString() ?? "unknown"} waiting={first.WaitingThreads})";
+        }
+        else
+        {
+            DeadlockSummary = "No deadlock candidates detected.";
+        }
+
+        WarningsSummary = snapshot.Warnings.Count == 0
+            ? "No data warnings."
+            : string.Join(" | ", snapshot.Warnings
+                .GroupBy(w => w.Category)
+                .Select(g => $"{g.Key}: {g.Count()}"));
     }
 
     private void RefreshBindings()
