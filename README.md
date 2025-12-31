@@ -29,6 +29,13 @@ The tool never calls external services; all processing happens locally using [Mi
 - IntelliDump sends a compact prompt containing heuristic findings, GC/thread stats, top strings, modules, and warnings to the local endpoint (default `http://localhost:11434/api/generate`). No cloud traffic is used.
 - The AI runs two passes: a quick summary, then a “problem check” loop that refines the findings into concrete suspected problems and fixes—and the GUI surfaces only those problems. You can also ask free-form questions after analysis; the AI answers using the dump evidence.
 
+## Running in Visual Studio
+
+1. Open `IntelliDump.sln` in Visual Studio 2022 or newer.
+2. Set the startup project to **IntelliDump.App** (right-click → “Set as Startup Project”).
+3. Choose **Debug** → **Start Debugging** to launch the Avalonia GUI, or run `dotnet run` from the Package Manager Console for CLI usage.
+4. To enable local AI, ensure an Ollama-compatible endpoint is running (default `http://localhost:11434/api/generate`) and tick “Enable AI analysis” in the GUI, or pass `--ai` in the CLI arguments.
+
 ## What it checks
 
 - Crashes/unhandled exceptions (faulting thread surfaced first).
